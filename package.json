@@ -1,0 +1,32 @@
+{
+  "name": "lfrgs-dynamic-items-container",
+  "version": "1.0.0",
+  "description": "A very generic form validator",
+  "main": "index.js",
+  "scripts": {
+    "start": "http-server ./demo",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/liferay-gs-latam/lfrgs-dynamic-items-container"
+  },
+  "author": "Bruno Wacemberg",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/liferay-gs-latam/lfrgs-dynamic-items-container/issues"
+  },
+  "homepage": "https://github.com/liferay-gs-latam/lfrgs-dynamic-items-container#readme",
+  "devDependencies": {
+    "@babel/core": "^7.14.0",
+    "@babel/polyfill": "^7.12.1",
+    "@babel/preset-env": "^7.14.0",
+    "@babel/register": "^7.13.16",
+    "babel-loader": "^8.2.2",
+    "gulp": "^4.0.2",
+    "http-server": "^13.0.2",
+    "mustache": "^4.2.0",
+    "webpack": "^5.36.1",
+    "webpack-stream": "^6.1.2"
+  }
+}
