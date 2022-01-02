@@ -4,7 +4,7 @@
   "description": "A very generic form validator",
   "main": "index.js",
   "scripts": {
-    "start": "http-server ./demo",
+    "start": "http-server ./",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
