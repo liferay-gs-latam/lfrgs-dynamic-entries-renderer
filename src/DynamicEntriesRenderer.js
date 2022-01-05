@@ -7,23 +7,37 @@ import utils from "./utils";
 import HashRouter from './HashRouter';
 import defaultOptions from './defaultOptions';
 
+const hashRouter = new HashRouter();
 export default class DynamicEntriesRenderer {
     
     constructor(wrapperId, options) {
 
         options = {...defaultOptions, ...options}
 
+        // Essential settings
         this.$wrapper = document.getElementById(wrapperId);
-        this.$form = this.$wrapper.querySelector('[data-dynamic-entries-renderer-form]')
-        this.$list = this.$wrapper.querySelector('[data-dynamic-entries-renderer-list]')
+        this.$form = this.$wrapper.querySelector('[data-dynamic-entries-renderer-form]');
+        this.$results = this.$wrapper.querySelector('[data-dynamic-entries-renderer-results]');
         this.template = options.template;
         this.requestFn = options.requestFn;
-        this.onLoadingStart = options.onLoadingStart;
-        this.onLoadingFinish = options.onLoadingFinish;
+
+        // Behaviour settings
+        this.onInit = options.onInit;
+        this.onFormChange = options.onFormChange;
+        this.onRequestStart = options.onRequestStart;
+        this.onRequestFinish = options.onRequestFinish;
+        this.onRender = options.onRender;
+        this.onSubmit = options.onSubmit;
         this.submitOnFormChange = options.submitOnFormChange;
         this.enableCaching = options.enableCaching;
-        
-        if(this.$wrapper && this.$form && this.$list) {
+        this.defaultRequestParameters = options.defaultRequestParameters;
+        this.submitOnInit = options.submitOnInit;
+        this.shouldSubmitCheckFn = options.shouldSubmitCheckFn;
+        this.submitOnFormSubmit = options.submitOnFormSubmit;
+        this.submitOnHashChange = options.submitOnHashChange;
+
+        // Init if has wrapper and list elements
+        if(this.$wrapper && this.$results) {
             this.init()
         } else {
             console.log('DynamicEntriesRenderer: A "wrapper" and "list" element should be defined')
@@ -34,163 +48,315 @@ export default class DynamicEntriesRenderer {
     registerEvents() {
 
         let handleFormChange = () => {
+            console.log('handleFormChange')
+            this.onFormChange && this.onFormChange();
             (this.submitOnFormChange) && this.submit()
-        }
-        let handleFormSubmit = (e) => {
-            e.preventDefault();
-            this.submit()
-        }
-        let handleHashChange = () => {  
-            let routerData = this._hashRouter.readHashData();
-            let routerParameters = routerData.params;
-            this.updateFilterElementsValues(routerParameters)
-            this.submit(false)
+
         }
 
-        this.$form.addEventListener('submit', handleFormSubmit)
-        this.$form.addEventListener('change', handleFormChange)
+        let handleFormSubmit = (e) => {
+            console.log('handleFormSubmit')
+
+            e.preventDefault();
+            (this.submitOnFormSubmit) && this.submit()
+        }
+
+        let handleHashChange = () => {  
+            console.log('handleHashChange')
+
+            if(this._isLoading) {
+                this.cancelRequest()
+            }
+
+            let routerData = hashRouter.readHashData();
+            let routerParameters = routerData.params;
+
+            Object.keys(this.getFilterElements()).forEach(key => {
+                if(routerParameters[key] && routerParameters[key].length) {
+                    this.setFilterValue(key, routerParameters[key])
+                } else {
+                    let filterDefaultValue = this.getFilterDefaultValue(key);
+                    this.setFilterValue(key, filterDefaultValue)
+                }
+            })
+
+            this.submitOnHashChange && this.submit(false)
+            
+        }
+
+        if(this.$form) {
+            this.$form.addEventListener('submit', handleFormSubmit)
+            this.$form.addEventListener('change', handleFormChange)
+        }
+        
         window.addEventListener('hashchange', handleHashChange)
 
     }
 
     init() {
         
+        // Initialize 
         this._cache = {};
-        this._hashRouter = new HashRouter();
-        this.filterElements = {};
-        this.isLoading = false;
-        this.response = {}
-        this.lastRequestParams = {};
+        this._isLoading = false;
+        this.currentRenderData = {}
+        this.currentRequestParameters = {};
 
+        // Register events to listen to form changes and hash changes
         this.registerEvents()
 
-        let filterElements = Array.from(this.$form.querySelectorAll('[data-dynamic-entries-renderer-filter-parameter]'));
-        filterElements.forEach(filterElement => {
-            let parameter = filterElement.getAttribute('data-dynamic-entries-renderer-filter-parameter');
-            if(parameter.length) {
-                this.filterElements[parameter] = filterElement
+        let routerData = hashRouter.readHashData();
+        let routerParameters = routerData.params;
+
+        let parametersDefinedFromRouter = {};
+        let filterElements = this.getFilterElements();
+
+        // Set filter element's default value attributes (if missing)
+        Object.keys(filterElements).forEach(key => {
+            let filterElement = filterElements[key];
+            if(!filterElement.hasAttribute('data-dynamic-entries-renderer-filter-default-value')) {
+                filterElement.setAttribute('data-dynamic-entries-renderer-filter-default-value', filterElement.value)
+            } else {
+                let defaultValue = this.getFilterDefaultValue(key);
+                if(filterElement.value !== defaultValue) {
+                    this.setFilterValue(key, defaultValue)
+                }
+            }
+        })
+        
+        // Set filter element's values based on hash parameters
+        Object.keys(filterElements).forEach(key => {
+            if(routerParameters[key] && routerParameters[key].length) {
+                this.setFilterValue(key, routerParameters[key]);
+                parametersDefinedFromRouter[key] = routerParameters[key];
+            } else {
+                let filterDefaultValue = this.getFilterDefaultValue(key);
+                this.setFilterValue(key, filterDefaultValue)
             }
             
         })
 
-        window.dispatchEvent(new Event('hashchange'));
-        this.onInit && this.onInit(this);
 
+
+        if(this.submitOnInit || Object.keys(parametersDefinedFromRouter).length) {
+            this.submit(false);
+        }
+        
+        this.onInit && this.onInit();
+
+    }
+
+    reset() {
+        Object.keys(this.getFilterElements()).forEach(parameter => {
+            let defaultValue = this.getFilterDefaultValue(parameter);
+            this.setFilterValue(parameter, defaultValue);
+        })
+
+        this.submit();
+    }
+
+    getFilterElements() {
+        let filterElements = {};
+        let _filterElements = Array.from(this.$form.elements);
+        _filterElements.forEach(filterElement => {
+            if(filterElement.hasAttribute('data-dynamic-entries-renderer-filter-parameter')) {
+                let parameter = filterElement.getAttribute('data-dynamic-entries-renderer-filter-parameter');
+                if(parameter.length) {
+                    filterElements[parameter] = filterElement
+                }
+            }
+        })
+        return filterElements
+        
+    }
+ 
+    getRequestParameters() {
+        return {...this.defaultRequestParameters, ...this.getFiltersValues()};
     }
 
     submit(changeHash=true) {
-        let requestParameters = this.getFilterElementsValues();
-        (changeHash) && this.setHashParameters(requestParameters)
-        this.request(requestParameters)
+        
+        let _submit = () => {
+            (changeHash) && this.updateHashParameters();
+            this.request();
+            (this.onSubmit) && this.onSubmit();
+        }
+        
+        if(this.shouldSubmitCheckFn) {
+            this.shouldSubmitCheckFn((cb) => {
+                cb && _submit()
+            })
+        } else {
+            _submit()
+        }
         
     }
 
-    request(requestParams) {
-        if(!this.requestFn || this.isLoading) {
+    request(requestParameters) {
+
+        if(!this.requestFn || this._isLoading) {
             return;
         }
+
+        if(!requestParameters) {
+            requestParameters = this.getRequestParameters()
+        }
         
-        let stringfiedRequestParams = JSON.stringify(requestParams);
-        
-        if(stringfiedRequestParams !== JSON.stringify(this.lastRequestParams)) {
-            this.isLoading = true;
-            this.disable()
-            this.onLoadingStart && this.onLoadingStart(this);
-
-            if(this.enableCaching && this._cache[stringfiedRequestParams]) {
-                let cachedRenderObject = this._cache[stringfiedRequestParams];
-                this.response = cachedRenderObject;
-                this.render()
-                this.isLoading = false;
-                
-            } else {
-                this.requestFn(requestParams, (renderObject) => {
-                    this.response = renderObject;
-                    this.render()
-                    this.isLoading = false;
-                    if(this.enableCaching) {
-                        this._cache[stringfiedRequestParams] = renderObject;
-                    } else {
-                        this._cache[stringfiedRequestParams] = {}
-                        delete this._cache[stringfiedRequestParams]
-                    }
-                })
-            }
-
-            this.lastRequestParams = requestParams;
-
+        let _render = (renderData) => {
+            this.currentRequestParameters = requestParameters;
+            this.currentRenderData = renderData;
+            this.render()
         }
 
-    }
+        if(!this.$form) {
 
-    render() {
-        this.$list.innerHTML = "";
-        this.$list.appendChild(utils.parseTemplate(this.template, this.response))
+            this.requestFn(requestParameters, (renderData) => {
+                _render(renderData)
+            })
+            
+        } else {
 
-        this.enable()
-        this.onLoadingFinish && this.onLoadingFinish(this);
+            let stringfiedCurrentRequestParameters = JSON.stringify(this.currentRequestParameters);
+            let stringfiedRequestParameters = JSON.stringify(requestParameters);
+
+            if(stringfiedRequestParameters !== stringfiedCurrentRequestParameters) {
+    
+                if(this.enableCaching && this._cache[stringfiedRequestParameters]) {
+
+                    let renderData = this._cache[stringfiedRequestParameters];
+                    _render(renderData)
+                    
+                } else {
+
+                    this._isLoading = true;
+                    this.disable()
+                    
+
+                    let cancelledRequest = false;
+                    this.cancelRequest = () => {
+                        
+                        cancelledRequest = true;
+                        this.enable()
+                        this._isLoading = false;
+
+                        
+                        let filterElements = this.getFilterElements();
+                        Object.keys(filterElements).forEach(key => {
+                            let value = this.currentRequestParameters[key];
+                            if(value !== undefined) {
+                                this.setFilterValue(key, this.currentRequestParameters[key])
+                            }
+                        })
+                        this.updateHashParameters()
+
+                        _render(this.currentRenderData);
+                        this.submit()
+                        
+                    }
+
+                    this.onRequestStart && this.onRequestStart(requestParameters);
+                    this.requestFn(requestParameters, (renderData) => {
+
+                        if(this.enableCaching) {
+                            this._cache[stringfiedRequestParameters] = renderData;
+                        } else {
+                            this._cache[stringfiedRequestParameters] = {}
+                            delete this._cache[stringfiedRequestParameters]
+                        }
+
+                        if(!cancelledRequest) {
+                            this.enable()
+                            this._isLoading = false;
+    
+                            this.onRequestFinish && this.onRequestFinish();
+    
+                            _render(renderData)
+                    
+
+                        }  
+
+
+                    })
+
+                }
+    
+            }
+        }
         
     }
-    
-    updateFilterElementsValues(parameters) {
-        Object.keys(this.filterElements).forEach(key => {
-            if(parameters[key] && parameters[key].length) {
-                this.setFilterElementValue(key, parameters[key])
-            } else {
-                let filterDefaultValue = this.getFilterElementDefaultValue(key);
-                this.setFilterElementValue(key, filterDefaultValue)
-            }
-        })
+
+    render(renderData, templateString) {
+
+        if(!renderData) {
+            renderData = this.currentRenderData
+        }
+        if(!templateString) { 
+            templateString = this.template
+        }
+
+        this.$results.innerHTML = "";
+        this.$results.appendChild(utils.parseTemplate(templateString, renderData))
+        this.onRender && this.onRender();
+
     }
 
-    setHashParameters(_parameters) {
-        let parameters = {}
-        Object.keys(_parameters).forEach(key => {
-            let value = _parameters[key];
-            if(value && value.length > 0 && value !== this.getFilterElementDefaultValue(key)) {
-                parameters[key] = value
-                //parameters[key] = encodeURIComponent(value)
-
+    updateHashParameters() {
+       
+        let filtersValues = this.getFiltersValues();
+        let hashParameters = {}
+        Object.keys(filtersValues).forEach(key => {
+            let value = filtersValues[key];
+            if(value !== this.getFilterDefaultValue(key)) {
+                hashParameters[key] = value
             }
         })
-        this._hashRouter.setHashData({params: parameters});
+
+        let routerData = hashRouter.readHashData();
+        let routerParameters = routerData.params;
+        let stringfiedRouterParameters = JSON.stringify(routerParameters);
+        let stringfiedHashParameters = JSON.stringify(hashParameters);
+
+        if(stringfiedRouterParameters !== stringfiedHashParameters) {
+            console.log('updating hash params')
+            hashRouter.setHashData({params: hashParameters});
+        }
+        
     }
 
-    getFilterElementValue(filterParameter) {
-        let filterElement = this.filterElements[filterParameter];
+    getFilterValue(filterParameter) {
+        let filterElement = this.getFilterElements()[filterParameter];
         return filterElement.value;
     }
 
-    getFilterElementDefaultValue(filterParameter) {
-        let filterElement = this.filterElements[filterParameter];
+    getFilterDefaultValue(filterParameter) {
+        let filterElement = this.getFilterElements()[filterParameter];
         if(filterElement.hasAttribute('data-dynamic-entries-renderer-filter-default-value')) {
             return filterElement.getAttribute('data-dynamic-entries-renderer-filter-default-value')
         }
         return ''
     }
 
-    setFilterElementValue(filterParameter, value) {
-        if(!this.filterElements[filterParameter]) {
+    setFilterValue(filterParameter, value) {
+        if(this._isLoading && !this.getFilterElements()[filterParameter]) {
             return false;
         }
-        if(this.isLoading) {
-            return false;
-        }
-        let filterElement = this.filterElements[filterParameter];
+
+        let filterElement = this.getFilterElements()[filterParameter];
         filterElement.value = decodeURIComponent(value);
+        // (this.submitOnFormChange) && this.submit();
+
     }
-    
-    getFilterElementsValues() {
-        let elementsValues = {};
-        Object.keys(this.filterElements).forEach(parameter => {
-            elementsValues[parameter] = this.getFilterElementValue(parameter)
+
+    getFiltersValues() {
+        let filtersValues = {};
+        Object.keys(this.getFilterElements()).forEach(parameter => {
+            filtersValues[parameter] = this.getFilterValue(parameter)
         })
-        return elementsValues
+        return filtersValues
     }
 
     disable() {
-        Object.keys(this.filterElements).forEach(key => {
-            let filterElement = this.filterElements[key];
+        Object.keys(this.getFilterElements()).forEach(key => {
+            let filterElement = this.getFilterElements()[key];
             if(filterElement.hasAttribute('disabled')) {
                 filterElement.setAttribute('data-originally-disabled', 'true')
             } else {
@@ -198,19 +364,19 @@ export default class DynamicEntriesRenderer {
                 filterElement.classList.add('disabled')
             }
         })
-
     }
 
     enable() {
-        Object.keys(this.filterElements).forEach(key => {
-            let filterElement = this.filterElements[key];
+        Object.keys(this.getFilterElements()).forEach(key => {
+            let filterElement = this.getFilterElements()[key];
             if(!filterElement.hasAttribute('data-originally-disabled')) {
                 filterElement.disabled = false;
                 filterElement.removeAttribute('data-originally-disabled')
                 filterElement.classList.remove('disabled')
             }
         })
-
     }
+
+
 
 }

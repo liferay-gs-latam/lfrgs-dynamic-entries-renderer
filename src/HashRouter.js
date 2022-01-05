@@ -38,8 +38,6 @@ export default class HashRouter {
 
     }
 
-
-
     getHashString(hashData) {
         
         let newHash = "";
@@ -49,10 +47,8 @@ export default class HashRouter {
 
         let i = 0;
         hashData.params && Object.keys(hashData.params).forEach((param) => {
-            if(hashData.params[param].length) {
-                newHash += (i==0?'?':'&')+param+'='+hashData.params[param];
-                i++;
-            }
+            newHash += (i==0?'?':'&')+param+'='+hashData.params[param];
+            i++;
         })
 
         return newHash;
@@ -60,11 +56,9 @@ export default class HashRouter {
     }
 
     setHashData(hashData) {
-
         history.pushState({}, '', '#'+this.getHashString(hashData));
 
     }
-
 
     listen(cb=()=>{}) {
 

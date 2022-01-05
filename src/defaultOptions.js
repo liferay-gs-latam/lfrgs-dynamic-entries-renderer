@@ -2,8 +2,11 @@
 export default {
 
     submitOnFormChange: true,
-    cacheResults: true, 
-    
+    submitOnInit: true, 
+    enableCaching: true, 
+    submitOnFormSubmit: true,
+    submitOnHashChange: true,
+    defaultRequestParameters: {},
     requestFn: (params, callback) => {
         var headers = new Headers();
         headers.append("app-id", '61cc1e2f679cb9641fa3f88f');
@@ -32,8 +35,12 @@ export default {
     },
 
     onInit: function() {},
-    onLoadingStart: function() {},
-    onLoadingFinish: function() {},
+    onRequestStart: function() {},
+    onRequestFinish: function() {},
+    onRender: function() {},
+    onSubmit: function() {},
+
+    shouldSubmitCheckFn: undefined,
     
     template: `
         <div>
@@ -41,7 +48,6 @@ export default {
         </div>
     
     `
-    
     
 }
 
