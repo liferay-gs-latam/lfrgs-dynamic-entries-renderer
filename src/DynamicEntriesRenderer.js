@@ -156,6 +156,9 @@ export default class DynamicEntriesRenderer {
 
     getFilterElements() {
         let filterElements = {};
+        if(!this.$form) {
+            return filterElements
+        }
         let _filterElements = Array.from(this.$form.elements);
         _filterElements.forEach(filterElement => {
             if(filterElement.hasAttribute('data-dynamic-entries-renderer-filter-parameter')) {
