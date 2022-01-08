@@ -6,23 +6,31 @@
 import utils from "./utils";
 import HashRouter from './HashRouter';
 import defaultOptions from './defaultOptions';
+import constants from "./constants";
 
 const hashRouter = new HashRouter();
+
 export default class DynamicEntriesRenderer {
-    
+
+    static setDefaultOptions(options) {
+        defaultOptions={...defaultOptions, ...options}
+    }
+
     constructor(wrapperId, options) {
 
         options = {...defaultOptions, ...options}
 
         // Essential settings
         this.$wrapper = document.getElementById(wrapperId);
-        this.$form = this.$wrapper.querySelector('[data-dynamic-entries-renderer-form]');
-        this.$results = this.$wrapper.querySelector('[data-dynamic-entries-renderer-results]');
+        this.$form = this.$wrapper.querySelector('['+constants.FORM_ELEMENT_DATA_ATTR+']');
+        this.$results = this.$wrapper.querySelector('['+constants.RESULTS_ELEMENT_DATA_ATTR+']');
         this.template = options.template;
+        this.templateType = options.templateType;
         this.requestFn = options.requestFn;
 
         // Behaviour settings
         this.onInit = options.onInit;
+        this.onHashChange = options.onHashChange;
         this.onFormChange = options.onFormChange;
         this.onRequestStart = options.onRequestStart;
         this.onRequestFinish = options.onRequestFinish;
@@ -78,8 +86,10 @@ export default class DynamicEntriesRenderer {
                     let filterDefaultValue = this.getFilterDefaultValue(key);
                     this.setFilterValue(key, filterDefaultValue)
                 }
-            })
-
+            });
+            
+            (this.onHashChange) && this.onHashChange();
+            
             this.submitOnHashChange && this.submit(false)
             
         }
@@ -113,8 +123,8 @@ export default class DynamicEntriesRenderer {
         // Set filter element's default value attributes (if missing)
         Object.keys(filterElements).forEach(key => {
             let filterElement = filterElements[key];
-            if(!filterElement.hasAttribute('data-dynamic-entries-renderer-filter-default-value')) {
-                filterElement.setAttribute('data-dynamic-entries-renderer-filter-default-value', filterElement.value)
+            if(!filterElement.hasAttribute(constants.FILTER_ELEMENT_DEFAULT_VALUE_DATA_ATTR)) {
+                filterElement.setAttribute(constants.FILTER_ELEMENT_DEFAULT_VALUE_DATA_ATTR, filterElement.value)
             } else {
                 let defaultValue = this.getFilterDefaultValue(key);
                 if(filterElement.value !== defaultValue) {
@@ -157,7 +167,7 @@ export default class DynamicEntriesRenderer {
     getFilterElements() {
         let filterElements = {};
         if(!this.$form) {
-          return filterElements;  
+            return filterElements
         }
         let _filterElements = Array.from(this.$form.elements);
         _filterElements.forEach(filterElement => {
@@ -297,13 +307,38 @@ export default class DynamicEntriesRenderer {
         }
 
         this.$results.innerHTML = "";
-        this.$results.appendChild(utils.parseTemplate(templateString, renderData))
-        this.onRender && this.onRender();
+        
+        if(this.templateType === "mustache") {
+
+            let $renderedResults = utils.parseMustacheTemplate(templateString, renderData);
+            this.$results.appendChild($renderedResults)
+            this.onRender && this.onRender();   
+            
+        } else if (this.templateType === "function") {
+
+            if(typeof this.template !== "function") {
+                return;
+            }
+            
+            let renderedResults = this.template(renderData);
+            if(!renderedResults) {
+                return
+            } 
+            
+            if(typeof renderedResults === "object") {
+                this.$results.appendChild($renderedResults)
+                this.onRender && this.onRender();   
+            } else if(typeof renderedResults === "string") {
+                this.$results.innerHTML = renderedResults
+                this.onRender && this.onRender();   
+            }
+            
+        }
 
     }
 
     updateHashParameters() {
-       
+
         let filtersValues = this.getFiltersValues();
         let hashParameters = {}
         Object.keys(filtersValues).forEach(key => {
@@ -332,8 +367,8 @@ export default class DynamicEntriesRenderer {
 
     getFilterDefaultValue(filterParameter) {
         let filterElement = this.getFilterElements()[filterParameter];
-        if(filterElement.hasAttribute('data-dynamic-entries-renderer-filter-default-value')) {
-            return filterElement.getAttribute('data-dynamic-entries-renderer-filter-default-value')
+        if(filterElement.hasAttribute(constants.FILTER_ELEMENT_DEFAULT_VALUE_DATA_ATTR)) {
+            return filterElement.getAttribute(constants.FILTER_ELEMENT_DEFAULT_VALUE_DATA_ATTR)
         }
         return ''
     }

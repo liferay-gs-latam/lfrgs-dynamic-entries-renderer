@@ -1,12 +1,6 @@
 
 export default {
-
-    submitOnFormChange: true,
-    submitOnInit: true, 
-    enableCaching: true, 
-    submitOnFormSubmit: true,
-    submitOnHashChange: true,
-    defaultRequestParameters: {},
+    // Request function
     requestFn: (params, callback) => {
         var headers = new Headers();
         headers.append("app-id", '61cc1e2f679cb9641fa3f88f');
@@ -31,56 +25,34 @@ export default {
         }).catch(error => {
             // error catch
         })
-       
+
     },
 
+    // Behaviour
+    submitOnFormChange: true,
+    submitOnInit: true, 
+    enableCaching: true, 
+    submitOnFormSubmit: true,
+    submitOnHashChange: true,
+    defaultRequestParameters: {},
+    shouldSubmitCheckFn: undefined,
+
+    // Events
     onInit: function() {},
     onRequestStart: function() {},
     onRequestFinish: function() {},
     onRender: function() {},
     onSubmit: function() {},
+    onFormChange: function() {},
+    onHashChange: function() {},
 
-    shouldSubmitCheckFn: undefined,
-    
+
+    // Template (variable type can vary depending on the templateType. The default templateType is "mustache" and it should be provided as a string)
     template: `
-        <div>
+        <div style="padding: 2rem; background: #eaeaea">
             Build your template using Handlebars syntax. Data must be provided thru the requestFn callback
         </div>
-    
-    `
-    
+    `,
+    templateType: "mustache"
+
 }
-
-
-
-/* --------------------------------
-
- <div>
-
-            Exibindo {{start}} a {{end}} de {{total}}
-
-            <div class="row">
-                
-                {{#each entries}}
-
-                    <div class="col-md-4 mb-4">      
-
-                        <div class="card h-100">
-                            <div class="card-body">
-                                <h5 class="card-title">
-                                    <img class="" width="40" src="{{picture}}"> 
-                                    {{firstName}} {{lastName}}
-                                </h5>
-                                <p class="card-text">Some quick example text to build on the card title and make up the bulk of the card's content.</p>
-                                <a href="#" class="btn btn-primary">Lorem</a>
-                            </div>
-                        </div>
-                        
-                    </div>
-
-                {{/each}}
-
-            </div>
-            
-        </div>
-*/
