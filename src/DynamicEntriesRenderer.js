@@ -87,7 +87,7 @@ export default class DynamicEntriesRenderer {
                     this.setFilterValue(key, filterDefaultValue)
                 }
             });
-            
+
             (this.onHashChange) && this.onHashChange();
             
             this.submitOnHashChange && this.submit(false)
@@ -335,6 +335,16 @@ export default class DynamicEntriesRenderer {
             
         }
 
+    }
+
+    getHashParameter(key) {
+        let routerData = hashRouter.readHashData();
+        let routerParameters = routerData.params;
+        if(routerParameters[key] !== undefined) {
+            return routerParameters[key]
+        } else {
+            return ""
+        }
     }
 
     updateHashParameters() {
