@@ -5,7 +5,7 @@ const utils = {
         const parser = new DOMParser();
         return parser.parseFromString(htmlString.trim(), 'text/html').body.firstChild;
     },
-    parseTemplate(templateString, templateData) {
+    parseMustacheTemplate(templateString, templateData) {
         return this.parseHTML(Mustache.render(templateString, templateData));
     }
     
