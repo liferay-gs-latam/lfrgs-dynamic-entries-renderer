@@ -46,9 +46,9 @@ export default class DynamicEntriesRenderer {
 
         // Init if has wrapper and list elements
         if(this.$wrapper && this.$results) {
-            this.init()
+            return this.init()
         } else {
-            console.log('DynamicEntriesRenderer: A "wrapper" and "list" element should be defined')
+            console.error('DynamicEntriesRenderer: A "wrapper" and "list" element should be defined')
         }
 
     }
@@ -56,22 +56,16 @@ export default class DynamicEntriesRenderer {
     registerEvents() {
 
         let handleFormChange = () => {
-            console.log('handleFormChange')
             this.onFormChange && this.onFormChange();
             (this.submitOnFormChange) && this.submit()
-
         }
 
         let handleFormSubmit = (e) => {
-            console.log('handleFormSubmit')
-
             e.preventDefault();
             (this.submitOnFormSubmit) && this.submit()
         }
 
         let handleHashChange = () => {  
-            console.log('handleHashChange')
-
             if(this._isLoading) {
                 this.cancelRequest()
             }
@@ -145,13 +139,13 @@ export default class DynamicEntriesRenderer {
             
         })
 
-
-
         if(this.submitOnInit || Object.keys(parametersDefinedFromRouter).length) {
             this.submit(false);
         }
         
         this.onInit && this.onInit();
+
+        return this
 
     }
 
@@ -160,7 +154,6 @@ export default class DynamicEntriesRenderer {
             let defaultValue = this.getFilterDefaultValue(parameter);
             this.setFilterValue(parameter, defaultValue);
         })
-
         this.submit();
     }
 
@@ -215,7 +208,7 @@ export default class DynamicEntriesRenderer {
         }
         
         let _render = (renderData) => {
-            this.currentRequestParameters = requestParameters;
+            this.currentRequestParameters = requestParameters; // Shoudl this be set before render?
             this.currentRenderData = renderData;
             this.render()
         }
@@ -364,7 +357,6 @@ export default class DynamicEntriesRenderer {
         let stringfiedHashParameters = JSON.stringify(hashParameters);
 
         if(stringfiedRouterParameters !== stringfiedHashParameters) {
-            console.log('updating hash params')
             hashRouter.setHashData({params: hashParameters});
         }
         
@@ -389,6 +381,12 @@ export default class DynamicEntriesRenderer {
         }
 
         let filterElement = this.getFilterElements()[filterParameter];
+        if(filterElement.tagName.toUpperCase() === "SELECT" && !filterElement.querySelector('option[value="'+value+'"]')) { // Should it???
+            var opt = document.createElement('option');
+            opt.value = value;
+            opt.innerHTML = '';
+            filterElement.appendChild(opt);
+        }
         filterElement.value = decodeURIComponent(value);
         // (this.submitOnFormChange) && this.submit();
 
